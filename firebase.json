@@ -1,0 +1,1 @@
+{"flutter":{"platforms":{"android":{"default":{"projectId":"perriodtracker","appId":"1:650376923775:android:2a55203dc997055bfc0d4a","fileOutput":"android/app/google-services.json"}},"dart":{"lib/firebase_options.dart":{"projectId":"perriodtracker","configurations":{"android":"1:650376923775:android:2a55203dc997055bfc0d4a","ios":"1:650376923775:ios:3fcea1b0e4811b25fc0d4a"}}}}}}
