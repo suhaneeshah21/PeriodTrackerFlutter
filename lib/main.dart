@@ -1,5 +1,7 @@
 import 'package:flutter/material.dart';
-import 'screens/cycle_log_screen.dart';
+import 'screens/main_shell.dart';
+import 'screens/onboarding/onboarding_screen.dart';
+
 
 void main() {
   runApp(const MyApp());
@@ -11,7 +13,8 @@ class MyApp extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      home: CycleLogScreen(),
+      debugShowCheckedModeBanner: false,
+      home: const OnboardingScreen(),
     );
   }
 }

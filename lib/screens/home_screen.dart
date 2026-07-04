@@ -8,9 +8,9 @@ class HomeScreen extends StatefulWidget {
 }
 
 class _HomeScreenState extends State<HomeScreen> {
-  // Dummy data — will come from user profile later
   final DateTime periodStartDate = DateTime(2026, 6, 15);
   final int avgCycleLength = 28;
+  final int periodDuration = 5;
 
   late DateTime viewingDate;
   late List<DateTime> dateList;
@@ -28,24 +28,23 @@ class _HomeScreenState extends State<HomeScreen> {
     viewingDate = DateTime.now();
     nextPeriodDate = periodStartDate.add(Duration(days: avgCycleLength));
 
-    // Date list from period start to next predicted period
-    final totalDays = nextPeriodDate.difference(periodStartDate).inDays + 1;
+    final totalDays = nextPeriodDate.difference(periodStartDate).inDays;
     dateList = List.generate(
       totalDays,
       (i) => periodStartDate.add(Duration(days: i)),
     );
 
-    // Scroll to today
     final todayIndex = DateTime.now().difference(periodStartDate).inDays;
     final clampedIndex = todayIndex.clamp(0, dateList.length - 1);
     _scrollController = ScrollController(
       initialScrollOffset: clampedIndex * 56.0,
     );
 
-    // Clamp viewingDate to valid range
     if (viewingDate.isBefore(periodStartDate)) viewingDate = periodStartDate;
-    if (viewingDate.isAfter(nextPeriodDate)) viewingDate = nextPeriodDate;
+    if (viewingDate.isAfter(dateList.last)) viewingDate = dateList.last;
   }
+
+  DateTime get ovulationDate => periodStartDate.add(const Duration(days: 14));
 
   @override
   void dispose() {
@@ -57,7 +56,7 @@ class _HomeScreenState extends State<HomeScreen> {
       a.year == b.year && a.month == b.month && a.day == b.day;
 
   String _weekDay(DateTime date) {
-    const days = ["S", "M", "T", "W", "T", "F", "S"];
+    const days = ["Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"];
     return days[date.weekday % 7];
   }
 
@@ -69,9 +68,14 @@ class _HomeScreenState extends State<HomeScreen> {
     return months[month - 1];
   }
 
+  bool _isPeriodDay(DateTime date) {
+    final day = date.difference(periodStartDate).inDays;
+    return day >= 0 && day < periodDuration;
+  }
+
   String _getPhase() {
     final day = viewingDate.difference(periodStartDate).inDays;
-    if (day < 5) return "Menstrual Phase";
+    if (day < periodDuration) return "Menstrual Phase";
     if (day < 14) return "Follicular Phase";
     if (day == 14) return "Ovulation";
     return "Luteal Phase";
@@ -79,19 +83,40 @@ class _HomeScreenState extends State<HomeScreen> {
 
   String _getPhaseDescription() {
     final day = viewingDate.difference(periodStartDate).inDays;
-    if (day < 5) return "Your body is shedding the uterine lining. Rest and stay hydrated.";
+    if (day < periodDuration) return "Your body is shedding the uterine lining. Rest and stay hydrated.";
     if (day < 14) return "Estrogen is rising. Energy levels are increasing gradually.";
     if (day == 14) return "Peak fertility window. Ovulation is happening today.";
     return "Progesterone rises. You may feel calmer but energy may dip closer to your period.";
   }
 
-  int _getDaysToNextPeriod() {
-    return nextPeriodDate.difference(viewingDate).inDays;
+  // Right side label
+  String _getRightLabel() {
+    final day = viewingDate.difference(periodStartDate).inDays;
+
+    // Period day
+    if (day < periodDuration) {
+      return "Day ${day + 1}\nof period";
+    }
+
+    // Before ovulation
+    if (viewingDate.isBefore(ovulationDate)) {
+      final daysToOvulation = ovulationDate.difference(viewingDate).inDays;
+      return "$daysToOvulation ${daysToOvulation == 1 ? 'day' : 'days'} to\novulation";
+    }
+
+    // Ovulation day
+    if (_isSameDay(viewingDate, ovulationDate)) {
+      return "Ovulation\nday!";
+    }
+
+    // After ovulation
+    final daysToNext = nextPeriodDate.difference(viewingDate).inDays;
+    return "$daysToNext ${daysToNext == 1 ? 'day' : 'days'} to\nnext period";
   }
 
   @override
   Widget build(BuildContext context) {
-    final daysToNext = _getDaysToNextPeriod();
+    final cycleDay = viewingDate.difference(periodStartDate).inDays + 1;
 
     return Scaffold(
       backgroundColor: bg,
@@ -125,13 +150,14 @@ class _HomeScreenState extends State<HomeScreen> {
                       ],
                     ),
                     Container(
-                      padding: EdgeInsets.symmetric(horizontal: 12, vertical: 6),
+                      padding: EdgeInsets.symmetric(
+                          horizontal: 12, vertical: 6),
                       decoration: BoxDecoration(
                         color: accent,
                         borderRadius: BorderRadius.circular(20),
                       ),
                       child: Text(
-                        "Cycle Day ${viewingDate.difference(periodStartDate).inDays + 1}",
+                        "Cycle Day $cycleDay",
                         style: TextStyle(
                             color: primary,
                             fontWeight: FontWeight.bold,
@@ -155,7 +181,8 @@ class _HomeScreenState extends State<HomeScreen> {
                     final date = dateList[index];
                     final isViewing = _isSameDay(date, viewingDate);
                     final isToday = _isSameDay(date, DateTime.now());
-                    final isLast = _isSameDay(date, nextPeriodDate);
+                    final isPeriod = _isPeriodDay(date);
+                    final isOvulation = _isSameDay(date, ovulationDate);
 
                     return GestureDetector(
                       onTap: () => setState(() => viewingDate = date),
@@ -165,9 +192,11 @@ class _HomeScreenState extends State<HomeScreen> {
                           Text(
                             _weekDay(date),
                             style: TextStyle(
-                              fontSize: 11,
+                              fontSize: 10,
                               fontWeight: FontWeight.w500,
-                              color: isViewing ? primary : Colors.grey[400],
+                              color: isViewing
+                                  ? primary
+                                  : Colors.grey[400],
                             ),
                           ),
                           SizedBox(height: 5),
@@ -178,15 +207,14 @@ class _HomeScreenState extends State<HomeScreen> {
                               shape: BoxShape.circle,
                               color: isViewing
                                   ? primary
-                                  : isLast
-                                      ? Colors.red[100]
-                                      : Colors.transparent,
+                                  : isPeriod
+                                      ? accent
+                                      : isOvulation
+                                          ? Colors.pink[100]
+                                          : Colors.transparent,
                               border: isToday && !isViewing
                                   ? Border.all(color: primary, width: 1.5)
-                                  : isLast && !isViewing
-                                      ? Border.all(
-                                          color: Colors.red[300]!, width: 1.5)
-                                      : null,
+                                  : null,
                             ),
                             child: Center(
                               child: Text(
@@ -196,9 +224,11 @@ class _HomeScreenState extends State<HomeScreen> {
                                   fontWeight: FontWeight.bold,
                                   color: isViewing
                                       ? Colors.white
-                                      : isLast
-                                          ? Colors.red[400]
-                                          : Colors.grey[700],
+                                      : isPeriod
+                                          ? primary
+                                          : isOvulation
+                                              ? Colors.pink[400]!
+                                              : Colors.grey[700]!,
                                 ),
                               ),
                             ),
@@ -243,12 +273,32 @@ class _HomeScreenState extends State<HomeScreen> {
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
 
-                    // Phase + days row
+                    // Next period due
+                    Row(
+                      children: [
+                        Icon(Icons.calendar_today, color: Colors.white70, size: 14),
+                        SizedBox(width: 6),
+                        Text(
+                          "Next period due ${nextPeriodDate.day} ${_monthName(nextPeriodDate.month)} ${nextPeriodDate.year}",
+                          style: TextStyle(
+                              color: Colors.white70,
+                              fontSize: 13),
+                        ),
+                      ],
+                    ),
+
+                    SizedBox(height: 16),
+                    Divider(color: Colors.white24, height: 1),
+                    SizedBox(height: 16),
+
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                      crossAxisAlignment: CrossAxisAlignment.start,
+                      crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
+
+                        // Left — always phase
                         Column(
+                          mainAxisSize: MainAxisSize.min,
                           crossAxisAlignment: CrossAxisAlignment.start,
                           children: [
                             Text("Current Phase",
@@ -266,29 +316,25 @@ class _HomeScreenState extends State<HomeScreen> {
                             ),
                           ],
                         ),
+
+                        // Right — dynamic
                         Container(
+                          constraints: BoxConstraints(minHeight: 52),
+                          alignment: Alignment.center,
                           padding: EdgeInsets.symmetric(
                               horizontal: 14, vertical: 10),
                           decoration: BoxDecoration(
                             color: Colors.white.withOpacity(0.15),
                             borderRadius: BorderRadius.circular(14),
                           ),
-                          child: Column(
-                            children: [
-                              Text(
-                                "$daysToNext",
-                                style: TextStyle(
-                                    color: Colors.white,
-                                    fontSize: 26,
-                                    fontWeight: FontWeight.bold),
-                              ),
-                              Text(
-                                "days to\nnext period",
-                                textAlign: TextAlign.center,
-                                style: TextStyle(
-                                    color: Colors.white70, fontSize: 11),
-                              ),
-                            ],
+                          child: Text(
+                            _getRightLabel(),
+                            textAlign: TextAlign.center,
+                            style: TextStyle(
+                                color: Colors.white,
+                                fontSize: 14,
+                                fontWeight: FontWeight.bold,
+                                height: 1.5),
                           ),
                         ),
                       ],
@@ -296,7 +342,6 @@ class _HomeScreenState extends State<HomeScreen> {
 
                     SizedBox(height: 16),
 
-                    // Phase description
                     Text(
                       _getPhaseDescription(),
                       style: TextStyle(
@@ -307,11 +352,8 @@ class _HomeScreenState extends State<HomeScreen> {
 
                     SizedBox(height: 16),
 
-                    // Know more
                     GestureDetector(
-                      onTap: () {
-                        // opens phase detail screen later
-                      },
+                      onTap: () {},
                       child: Row(
                         children: [
                           Text(
